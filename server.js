@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname, "public")));
-app.get("/health", (_,res)=>res.json({ok:true, app:"Dockey Master"}));
+app.get("/health", (_,res)=>res.json({ok:true, app:"Donkey Master"}));
 
 const rooms = new Map();
 const SUITS = ["♠","♥","♦","♣"];
@@ -153,4 +153,4 @@ io.on("connection",socket=>{
  socket.on("disconnect",()=>{const room=roomFor(socket);if(!room)return;room.players=room.players.filter(p=>p.id!==socket.id);if(!room.players.length){rooms.delete(room.code);return;}if(room.host===socket.id)room.host=room.players[0].id;notice(room,"A player disconnected.");emitRoom(room);});
 });
 const PORT=process.env.PORT||3000;
-server.listen(PORT,"0.0.0.0",()=>console.log(`Dockey Master running on http://localhost:${PORT}`));
+server.listen(PORT,"0.0.0.0",()=>console.log(`Donkey Master running on http://localhost:${PORT}`));

@@ -1,4 +1,4 @@
-# Dockey Master
+# Donkey Master
 
 A responsive, real-time multiplayer card-game web app with private room codes, three card games, and optional peer-to-peer video.
 
