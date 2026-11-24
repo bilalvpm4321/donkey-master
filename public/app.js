@@ -34,7 +34,27 @@ function renderActions(){const area=document.createElement("div");area.className
  $("gameBoard").append(area);
 }
 document.querySelectorAll(".game-choice").forEach(b=>b.onclick=async()=>{const r=await emitAck("game:start",{game:b.dataset.game});if(!r?.ok)toast(r?.error||"Could not start game.");});
-const RTC_CONFIG={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"},{urls:"stun:stun2.l.google.com:19302"}]};
+const RTC_CONFIG={
+  iceServers:[
+    {urls:"stun:stun.l.google.com:19302"},
+    {urls:"stun:openrelay.metered.ca:80"},
+    {
+      urls:"turn:openrelay.metered.ca:80",
+      username:"openrelayproject",
+      credential:"openrelayproject"
+    },
+    {
+      urls:"turn:openrelay.metered.ca:443",
+      username:"openrelayproject",
+      credential:"openrelayproject"
+    },
+    {
+      urls:"turn:openrelay.metered.ca:443?transport=tcp",
+      username:"openrelayproject",
+      credential:"openrelayproject"
+    }
+  ]
+};
 const candidateQueues={};
 
 function updateVideoPlaceholder(){
@@ -74,7 +94,14 @@ function renderRemoteVideo(peerId,stream){
   }
   const video=tile.querySelector("video");
   if(video.srcObject!==stream)video.srcObject=stream;
-  video.play().catch(e=>console.warn("Video play error:",e));
+  const playPromise=video.play();
+  if(playPromise!==undefined){
+    playPromise.catch(e=>{
+      console.warn("Autoplay with sound blocked; muting to display video:",e);
+      video.muted=true;
+      video.play().catch(err=>console.error("Video play failed:",err));
+    });
+  }
   updateVideoPlaceholder();
 }
 
@@ -92,7 +119,10 @@ function createPeerConnection(peerId){
   const pc=new RTCPeerConnection(RTC_CONFIG);
   peers[peerId]=pc;
   if(localStream){localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));}
-  pc.ontrack=e=>{if(e.streams&&e.streams[0])renderRemoteVideo(peerId,e.streams[0]);};
+  pc.ontrack=e=>{
+    const stream=(e.streams&&e.streams[0])?e.streams[0]:new MediaStream([e.track]);
+    renderRemoteVideo(peerId,stream);
+  };
   pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc:signal",{to:peerId,signal:{candidate:e.candidate}});};
   pc.onconnectionstatechange=()=>{if(pc.connectionState==="disconnected"||pc.connectionState==="failed"||pc.connectionState==="closed")removeRemoteVideo(peerId);};
   return pc;
@@ -166,12 +196,15 @@ $("videoToggle").onclick=async()=>{
 
 socket.on("webrtc:signal",async({from,signal})=>{
   if(!from||from===me)return;
-  let pc=peers[from];
-  if(!pc)pc=createPeerConnection(from);
   try{
     if(signal.description){
       const desc=signal.description;
       if(desc.type==="offer"){
+        if(peers[from]){
+          try{peers[from].close();}catch(e){}
+          delete peers[from];
+        }
+        const pc=createPeerConnection(from);
         await pc.setRemoteDescription(new RTCSessionDescription(desc));
         if(localStream){
           const senders=pc.getSenders();
@@ -183,15 +216,20 @@ socket.on("webrtc:signal",async({from,signal})=>{
         await pc.setLocalDescription(answer);
         socket.emit("webrtc:signal",{to:from,signal:{description:pc.localDescription}});
       }else if(desc.type==="answer"){
-        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+        const pc=peers[from];
+        if(pc)await pc.setRemoteDescription(new RTCSessionDescription(desc));
       }
       if(candidateQueues[from]&&candidateQueues[from].length){
-        for(const cand of candidateQueues[from]){
-          try{await pc.addIceCandidate(new RTCIceCandidate(cand));}catch(e){console.warn(e);}
+        const pc=peers[from];
+        if(pc){
+          for(const cand of candidateQueues[from]){
+            try{await pc.addIceCandidate(new RTCIceCandidate(cand));}catch(e){console.warn(e);}
+          }
         }
         candidateQueues[from]=[];
       }
     }else if(signal.candidate){
+      const pc=peers[from]||createPeerConnection(from);
       if(!pc.remoteDescription){
         candidateQueues[from]=candidateQueues[from]||[];
         candidateQueues[from].push(signal.candidate);
