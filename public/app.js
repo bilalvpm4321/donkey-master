@@ -9,8 +9,8 @@ $("createBtn").onclick=async()=>{const name=$("hostName").value.trim()||"Host";c
 $("joinBtn").onclick=async()=>{const name=$("joinName").value.trim()||"Player",code=$("roomCode").value.trim().toUpperCase();if(!code)return toast("Enter a room key first.");const r=await emitAck("room:join",{name,code});if(r?.ok)enterRoom(r.code);else toast(r?.error||"Could not join.");};
 async function enterRoom(code){me=socket.id;show("room");hide("lobby");$("roomCodeDisplay").textContent=code;$("roomTitle").textContent="Room "+code;toast("You're in. Invite your crew!");}
 $("copyCode").onclick=()=>{navigator.clipboard?.writeText($("roomCodeDisplay").textContent);toast("Room key copied.");};
-$("leaveBtn").onclick=()=>location.reload();
-socket.on("room:update",r=>{room=r;renderRoom();});
+$("leaveBtn").onclick=()=>{if(localStream){localStream.getTracks().forEach(t=>t.stop());}location.reload();};
+socket.on("room:update",r=>{room=r;renderRoom();syncVideos();});
 socket.on("game:private",d=>{hand=d.hand||[];gamePrivate=d.privateState;me=d.myId;renderHand();renderBoard();});
 socket.on("notice",s=>{const p=document.createElement("p");p.textContent=s;$("activity").prepend(p);while($("activity").children.length>35)$("activity").lastChild.remove();});
 function renderRoom(){if(!room)return;$("playerCount").textContent=room.players.length+"/6";$("roomSub").textContent=room.started?"Game in progress":"Waiting for your crew to arrive.";const meObj=room.players.find(p=>p.id===me);$("hostHint").textContent=meObj?.host?"You're the host. Choose a game to start.":"Waiting for the host to choose a game."; $("players").innerHTML=room.players.map(p=>`<div class="player-tile ${p.id===me?"me":""}"><div class="avatar">${esc(p.name[0]?.toUpperCase()||"?")}</div><div><strong>${esc(p.name)} ${p.id===me?"(you)":""}</strong><small>${p.host?"HOST · ":""}${p.finished?"SAFE · ":""}${p.video?"CAM ON":p.place?`PLACE ${p.place}`:"READY"}</small></div></div>`).join("");$("table").classList.toggle("hidden",!room.started&&!room.state);if(room.game){$("gameTitle").textContent=({donkey:"♠ Real Donkey",bluff:"🃏 Bluff",book:"📚 Book"})[room.game];renderBoard();}document.querySelectorAll(".game-choice").forEach(b=>b.disabled=!meObj?.host||room.started);}
@@ -34,12 +34,172 @@ function renderActions(){const area=document.createElement("div");area.className
  $("gameBoard").append(area);
 }
 document.querySelectorAll(".game-choice").forEach(b=>b.onclick=async()=>{const r=await emitAck("game:start",{game:b.dataset.game});if(!r?.ok)toast(r?.error||"Could not start game.");});
-$("videoToggle").onclick=async()=>{if(!localStream){try{localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});$("videoToggle").textContent="◉ Camera on";socket.emit("video:status",{enabled:true});renderLocalVideo();toast("Camera enabled.");}catch(e){toast("Camera permission was not granted.");}}else{localStream.getTracks().forEach(t=>t.stop());localStream=null;$("videoToggle").textContent="◉ Turn on camera";socket.emit("video:status",{enabled:false});$("videos").innerHTML='<div class="video-placeholder"><span>◉</span><p>Camera party starts here</p><small>Turn on your camera to see your crew.</small></div>';closePeers();}};
-function renderLocalVideo(){const v=document.createElement("div");v.className="video-tile";const video=document.createElement("video");video.autoplay=true;video.muted=true;video.playsInline=true;video.srcObject=localStream;const label=document.createElement("span");label.textContent="You";v.append(video,label);$("videos").innerHTML="";$("videos").append(v);startPeers();}
-function closePeers(){Object.values(peers).forEach(p=>p.close());peers={};}
-function startPeers(){if(!room)return;room.players.filter(p=>p.id!==me&&p.video).forEach(async p=>{if(peers[p.id])return;const pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});peers[p.id]=pc;localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));pc.ontrack=e=>{let tile=document.getElementById("video-"+p.id);if(!tile){tile=document.createElement("div");tile.className="video-tile";tile.id="video-"+p.id;const v=document.createElement("video");v.autoplay=true;v.playsInline=true;const l=document.createElement("span");l.textContent=p.name;tile.append(v,l);$("videos").append(tile);}tile.querySelector("video").srcObject=e.streams[0];};pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc:signal",{to:p.id,signal:{candidate:e.candidate}});};const offer=await pc.createOffer();await pc.setLocalDescription(offer);socket.emit("webrtc:signal",{to:p.id,signal:{description:pc.localDescription}});});}
-socket.on("webrtc:signal",async({from,signal})=>{if(!localStream)return;let pc=peers[from];if(!pc){pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});peers[from]=pc;localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));pc.ontrack=e=>{let tile=document.getElementById("video-"+from);if(!tile){tile=document.createElement("div");tile.className="video-tile";tile.id="video-"+from;const v=document.createElement("video");v.autoplay=true;v.playsInline=true;const l=document.createElement("span");l.textContent="Player";tile.append(v,l);$("videos").append(tile);}tile.querySelector("video").srcObject=e.streams[0];};pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc:signal",{to:from,signal:{candidate:e.candidate}});};}
- try{if(signal.description){await pc.setRemoteDescription(signal.description);if(signal.description.type==="offer"){const answer=await pc.createAnswer();await pc.setLocalDescription(answer);socket.emit("webrtc:signal",{to:from,signal:{description:pc.localDescription}});}}else if(signal.candidate)await pc.addIceCandidate(signal.candidate);}catch(e){console.warn(e);}
+const RTC_CONFIG={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:"stun:stun1.l.google.com:19302"},{urls:"stun:stun2.l.google.com:19302"}]};
+const candidateQueues={};
+
+function updateVideoPlaceholder(){
+  const container=$("videos");if(!container)return;
+  const tiles=container.querySelectorAll(".video-tile");
+  let placeholder=container.querySelector(".video-placeholder");
+  if(tiles.length>0){if(placeholder)placeholder.remove();}
+  else if(!placeholder){container.innerHTML='<div class="video-placeholder"><span>◉</span><p>Camera party starts here</p><small>Turn on your camera to see your crew.</small></div>';}
+}
+
+function renderLocalVideo(){
+  let tile=document.getElementById("video-local");
+  if(!localStream){if(tile)tile.remove();updateVideoPlaceholder();return;}
+  if(!tile){
+    tile=document.createElement("div");tile.className="video-tile";tile.id="video-local";
+    const video=document.createElement("video");video.autoplay=true;video.muted=true;video.playsInline=true;
+    const label=document.createElement("span");label.textContent="You";
+    tile.append(video,label);$("videos").prepend(tile);
+  }
+  const video=tile.querySelector("video");
+  if(video.srcObject!==localStream)video.srcObject=localStream;
+  video.play().catch(()=>{});
+  updateVideoPlaceholder();
+}
+
+function renderRemoteVideo(peerId,stream){
+  let tile=document.getElementById("video-"+peerId);
+  const pObj=room?.players?.find(p=>p.id===peerId);
+  const name=pObj?pObj.name:"Player";
+  if(!tile){
+    tile=document.createElement("div");tile.className="video-tile";tile.id="video-"+peerId;
+    const v=document.createElement("video");v.autoplay=true;v.playsInline=true;
+    const label=document.createElement("span");label.textContent=name;
+    tile.append(v,label);$("videos").append(tile);
+  }else{
+    const label=tile.querySelector("span");if(label)label.textContent=name;
+  }
+  const video=tile.querySelector("video");
+  if(video.srcObject!==stream)video.srcObject=stream;
+  video.play().catch(e=>console.warn("Video play error:",e));
+  updateVideoPlaceholder();
+}
+
+function removeRemoteVideo(peerId){
+  const tile=document.getElementById("video-"+peerId);
+  if(tile)tile.remove();
+  if(peers[peerId]){try{peers[peerId].close();}catch(e){}delete peers[peerId];}
+  delete candidateQueues[peerId];
+  updateVideoPlaceholder();
+}
+
+function createPeerConnection(peerId){
+  if(peers[peerId])return peers[peerId];
+  candidateQueues[peerId]=[];
+  const pc=new RTCPeerConnection(RTC_CONFIG);
+  peers[peerId]=pc;
+  if(localStream){localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));}
+  pc.ontrack=e=>{if(e.streams&&e.streams[0])renderRemoteVideo(peerId,e.streams[0]);};
+  pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc:signal",{to:peerId,signal:{candidate:e.candidate}});};
+  pc.onconnectionstatechange=()=>{if(pc.connectionState==="disconnected"||pc.connectionState==="failed"||pc.connectionState==="closed")removeRemoteVideo(peerId);};
+  return pc;
+}
+
+async function initiateCall(peerId){
+  const pc=createPeerConnection(peerId);
+  try{
+    const offer=await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    socket.emit("webrtc:signal",{to:peerId,signal:{description:pc.localDescription}});
+  }catch(err){console.warn("Offer error for",peerId,err);}
+}
+
+function restartPeer(peerId){
+  if(peers[peerId]){try{peers[peerId].close();}catch(e){}delete peers[peerId];}
+  initiateCall(peerId);
+}
+
+function syncVideos(){
+  if(!room||!room.players)return;
+  room.players.forEach(p=>{
+    const tile=document.getElementById("video-"+p.id);
+    if(tile){const l=tile.querySelector("span");if(l)l.textContent=p.name;}
+  });
+  Object.keys(peers).forEach(pid=>{
+    const p=room.players.find(x=>x.id===pid);
+    if(!p){removeRemoteVideo(pid);}
+    else if(!p.video&&!localStream){removeRemoteVideo(pid);}
+  });
+  if(localStream){
+    room.players.filter(p=>p.id!==me).forEach(p=>{
+      if(!peers[p.id])initiateCall(p.id);
+    });
+  }
+  updateVideoPlaceholder();
+}
+
+$("videoToggle").onclick=async()=>{
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    return toast("Camera requires HTTPS or localhost.");
+  }
+  if(!localStream){
+    try{
+      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      $("videoToggle").textContent="◉ Camera on";
+      socket.emit("video:status",{enabled:true});
+      renderLocalVideo();
+      if(room&&room.players){
+        room.players.filter(p=>p.id!==me).forEach(p=>restartPeer(p.id));
+      }
+      toast("Camera enabled.");
+    }catch(e){
+      console.error(e);
+      toast("Camera permission was not granted.");
+    }
+  }else{
+    localStream.getTracks().forEach(t=>t.stop());
+    localStream=null;
+    $("videoToggle").textContent="◉ Turn on camera";
+    socket.emit("video:status",{enabled:false});
+    renderLocalVideo();
+    Object.keys(peers).forEach(pid=>{
+      const p=room?.players?.find(x=>x.id===pid);
+      if(!p||!p.video){removeRemoteVideo(pid);}
+      else{restartPeer(pid);}
+    });
+    toast("Camera turned off.");
+  }
+};
+
+socket.on("webrtc:signal",async({from,signal})=>{
+  if(!from||from===me)return;
+  let pc=peers[from];
+  if(!pc)pc=createPeerConnection(from);
+  try{
+    if(signal.description){
+      const desc=signal.description;
+      if(desc.type==="offer"){
+        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+        if(localStream){
+          const senders=pc.getSenders();
+          localStream.getTracks().forEach(t=>{
+            if(!senders.some(s=>s.track&&s.track.kind===t.kind))pc.addTrack(t,localStream);
+          });
+        }
+        const answer=await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        socket.emit("webrtc:signal",{to:from,signal:{description:pc.localDescription}});
+      }else if(desc.type==="answer"){
+        await pc.setRemoteDescription(new RTCSessionDescription(desc));
+      }
+      if(candidateQueues[from]&&candidateQueues[from].length){
+        for(const cand of candidateQueues[from]){
+          try{await pc.addIceCandidate(new RTCIceCandidate(cand));}catch(e){console.warn(e);}
+        }
+        candidateQueues[from]=[];
+      }
+    }else if(signal.candidate){
+      if(!pc.remoteDescription){
+        candidateQueues[from]=candidateQueues[from]||[];
+        candidateQueues[from].push(signal.candidate);
+      }else{
+        try{await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));}catch(e){console.warn(e);}
+      }
+    }
+  }catch(err){console.warn("Signal error:",err);}
 });
 $("rulesBtn").onclick=()=>{show("rulesModal");showRule(currentRule);};$("closeRules").onclick=()=>hide("rulesModal");$("rulesModal").onclick=e=>{if(e.target.id==="rulesModal")hide("rulesModal");};
 document.querySelectorAll("[data-rule]").forEach(b=>b.onclick=()=>showRule(b.dataset.rule));
