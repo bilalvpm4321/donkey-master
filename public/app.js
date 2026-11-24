@@ -37,6 +37,7 @@ document.querySelectorAll(".game-choice").forEach(b=>b.onclick=async()=>{const r
 const RTC_CONFIG={
   iceServers:[
     {urls:"stun:stun.l.google.com:19302"},
+    {urls:"stun:stun1.l.google.com:19302"},
     {urls:"stun:openrelay.metered.ca:80"},
     {
       urls:"turn:openrelay.metered.ca:80",
@@ -53,7 +54,8 @@ const RTC_CONFIG={
       username:"openrelayproject",
       credential:"openrelayproject"
     }
-  ]
+  ],
+  iceCandidatePoolSize:10
 };
 const candidateQueues={};
 
@@ -70,7 +72,9 @@ function renderLocalVideo(){
   if(!localStream){if(tile)tile.remove();updateVideoPlaceholder();return;}
   if(!tile){
     tile=document.createElement("div");tile.className="video-tile";tile.id="video-local";
-    const video=document.createElement("video");video.autoplay=true;video.muted=true;video.playsInline=true;
+    const video=document.createElement("video");
+    video.autoplay=true;video.muted=true;video.playsInline=true;
+    video.setAttribute("autoplay","");video.setAttribute("muted","");video.setAttribute("playsinline","");video.setAttribute("webkit-playsinline","");
     const label=document.createElement("span");label.textContent="You";
     tile.append(video,label);$("videos").prepend(tile);
   }
@@ -80,27 +84,38 @@ function renderLocalVideo(){
   updateVideoPlaceholder();
 }
 
-function renderRemoteVideo(peerId,stream){
+function renderRemoteVideo(peerId,track,stream){
   let tile=document.getElementById("video-"+peerId);
   const pObj=room?.players?.find(p=>p.id===peerId);
   const name=pObj?pObj.name:"Player";
   if(!tile){
     tile=document.createElement("div");tile.className="video-tile";tile.id="video-"+peerId;
-    const v=document.createElement("video");v.autoplay=true;v.playsInline=true;
+    const v=document.createElement("video");
+    v.autoplay=true;v.muted=true;v.playsInline=true;
+    v.setAttribute("autoplay","");v.setAttribute("muted","");v.setAttribute("playsinline","");v.setAttribute("webkit-playsinline","");
+    const a=document.createElement("audio");
+    a.autoplay=true;
     const label=document.createElement("span");label.textContent=name;
-    tile.append(v,label);$("videos").append(tile);
+    tile.append(v,a,label);$("videos").append(tile);
   }else{
     const label=tile.querySelector("span");if(label)label.textContent=name;
   }
   const video=tile.querySelector("video");
-  if(video.srcObject!==stream)video.srcObject=stream;
-  const playPromise=video.play();
-  if(playPromise!==undefined){
-    playPromise.catch(e=>{
-      console.warn("Autoplay with sound blocked; muting to display video:",e);
-      video.muted=true;
-      video.play().catch(err=>console.error("Video play failed:",err));
-    });
+  const audio=tile.querySelector("audio");
+
+  if(track&&track.kind==="video"){
+    const vStream=stream||new MediaStream([track]);
+    if(video.srcObject!==vStream)video.srcObject=vStream;
+    video.play().catch(()=>{});
+    track.onunmute=()=>{video.play().catch(()=>{});};
+  }else if(track&&track.kind==="audio"){
+    const aStream=stream||new MediaStream([track]);
+    if(audio.srcObject!==aStream)audio.srcObject=aStream;
+    audio.play().catch(()=>{});
+    track.onunmute=()=>{audio.play().catch(()=>{});};
+  }else if(stream){
+    if(video.srcObject!==stream)video.srcObject=stream;
+    video.play().catch(()=>{});
   }
   updateVideoPlaceholder();
 }
@@ -120,8 +135,7 @@ function createPeerConnection(peerId){
   peers[peerId]=pc;
   if(localStream){localStream.getTracks().forEach(t=>pc.addTrack(t,localStream));}
   pc.ontrack=e=>{
-    const stream=(e.streams&&e.streams[0])?e.streams[0]:new MediaStream([e.track]);
-    renderRemoteVideo(peerId,stream);
+    renderRemoteVideo(peerId,e.track,(e.streams&&e.streams[0])?e.streams[0]:null);
   };
   pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc:signal",{to:peerId,signal:{candidate:e.candidate}});};
   pc.onconnectionstatechange=()=>{if(pc.connectionState==="disconnected"||pc.connectionState==="failed"||pc.connectionState==="closed")removeRemoteVideo(peerId);};
@@ -131,7 +145,7 @@ function createPeerConnection(peerId){
 async function initiateCall(peerId){
   const pc=createPeerConnection(peerId);
   try{
-    const offer=await pc.createOffer();
+    const offer=await pc.createOffer({offerToReceiveAudio:true,offerToReceiveVideo:true});
     await pc.setLocalDescription(offer);
     socket.emit("webrtc:signal",{to:peerId,signal:{description:pc.localDescription}});
   }catch(err){console.warn("Offer error for",peerId,err);}
@@ -161,13 +175,26 @@ function syncVideos(){
   updateVideoPlaceholder();
 }
 
+const unlockAudio=()=>{
+  document.querySelectorAll(".video-tile audio").forEach(a=>{
+    if(a.srcObject&&a.paused)a.play().catch(()=>{});
+  });
+};
+document.addEventListener("click",unlockAudio);
+document.addEventListener("touchstart",unlockAudio);
+
 $("videoToggle").onclick=async()=>{
   if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     return toast("Camera requires HTTPS or localhost.");
   }
   if(!localStream){
     try{
-      localStream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});
+      localStream=await navigator.mediaDevices.getUserMedia({
+        video:{width:{ideal:640},height:{ideal:480},frameRate:{ideal:24}},
+        audio:true
+      });
+      localStream.getVideoTracks().forEach(t=>{t.enabled=true;});
+      localStream.getAudioTracks().forEach(t=>{t.enabled=true;});
       $("videoToggle").textContent="◉ Camera on";
       socket.emit("video:status",{enabled:true});
       renderLocalVideo();
