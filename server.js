@@ -17,7 +17,7 @@ const rankValue = r => RANKS.indexOf(r);
 const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[a[i], a[j]] = [a[j], a[i]]; } return a; };
 const id = () => crypto.randomBytes(3).toString("hex").toUpperCase();
 const roomFor = socket => [...rooms.values()].find(r => r.players.some(p => p.id === socket.id));
-function deck(jokers = false) { const d = []; for (const s of SUITS) for (const r of RANKS) d.push({ rank: r, suit: s }); if (jokers) { d.push({ rank: "JOKER", suit: "★", joker: true }, { rank: "JOKER", suit: "★", joker: true }); } return shuffle(d); }
+function deck(jokers = false) { const d = []; for (const s of SUITS) for (const r of RANKS) d.push({ rank: r, suit: s }); if (jokers) { d.push({ rank: "JOKER", suit: "★", joker: true, color: "PURPLE" }, { rank: "JOKER", suit: "★", joker: true, color: "RED" }); } return shuffle(d); }
 function pub(room) {
   return {
     code: room.code, host: room.host, game: room.game, started: room.started,
@@ -49,11 +49,23 @@ function startBook(room) {
   notice(room, "Book started. Ask a player for a rank already in your hand."); emitRoom(room);
 }
 function startGame(room, game) {
-  if (room.players.length < 2) return { error: "At least 2 players are required." };
-  if (game === "donkey" && room.players.length > 6) return { error: "Donkey supports 3–6 players." };
-  if (game === "donkey" && room.players.length < 3) return { error: "Real Donkey needs 3–6 players." };
   if (!["donkey", "bluff", "book"].includes(game)) return { error: "Unknown game." };
-  if (game === "donkey") startDonkey(room); if (game === "bluff") startBluff(room); if (game === "book") startBook(room); return {};
+  const minRequired = (game === "donkey") ? 3 : 2;
+  const demoNames = ["Alex (Demo)", "Sam (Demo)", "Jordan (Demo)", "Taylor (Demo)"];
+  while (room.players.length < minRequired) {
+    const idx = room.players.length;
+    room.players.push({
+      id: "demo-" + idx,
+      name: demoNames[idx - 1] || ("Player " + (idx + 1)),
+      hand: [],
+      video: false,
+      isDemo: true
+    });
+  }
+  if (game === "donkey") startDonkey(room);
+  if (game === "bluff") startBluff(room);
+  if (game === "book") startBook(room);
+  return {};
 }
 function player(room, sid) { return room.players.find(p => p.id === sid); }
 function privateHand(room, p) { io.to(p.id).emit("game:private", { hand: p.hand || [], myId: p.id, game: room.game, privateState: room.privateState?.[p.id] || null }); }
@@ -145,8 +157,25 @@ function checkBooks(room, p) {
 }
 io.on("connection", socket => {
   socket.on("room:create", ({ name }, cb) => { const code = id(); const room = { code, host: socket.id, players: [{ id: socket.id, name: String(name || "Host").slice(0, 20), hand: [], video: false }], game: null, started: false, state: null }; rooms.set(code, room); socket.join(code); cb?.({ ok: true, code }); emitRoom(room); });
-  socket.on("room:join", ({ code, name }, cb) => { const room = rooms.get(String(code || "").toUpperCase()); if (!room) return cb?.({ ok: false, error: "Room code not found." }); if (room.started) return cb?.({ ok: false, error: "A game is already in progress." }); if (room.players.length >= 6) return cb?.({ ok: false, error: "This room is full (maximum 6 players)." }); const p = { id: socket.id, name: String(name || "Player").slice(0, 20), hand: [], video: false }; room.players.push(p); socket.join(room.code); cb?.({ ok: true, code: room.code }); notice(room, `${p.name} joined the room.`); emitRoom(room); });
-  socket.on("game:start", ({ game }, cb) => { const room = roomFor(socket); if (!room || room.host !== socket.id) return cb?.({ ok: false, error: "Only the host can start a game." }); const result = startGame(room, game); cb?.({ ok: !result.error, ...result }); });
+  socket.on("room:join", ({ code, name }, cb) => {
+    const room = rooms.get(String(code || "").toUpperCase());
+    if (!room) return cb?.({ ok: false, error: "Room code not found." });
+    const demoIndex = room.players.findIndex(p => p.isDemo);
+    if (demoIndex >= 0) room.players.splice(demoIndex, 1);
+    if (room.players.length >= 6) return cb?.({ ok: false, error: "This room is full (maximum 6 players)." });
+    const p = { id: socket.id, name: String(name || "Player").slice(0, 20), hand: [], video: false };
+    room.players.push(p);
+    socket.join(room.code);
+    cb?.({ ok: true, code: room.code });
+    notice(room, `${p.name} joined the room.`);
+    emitRoom(room);
+  });
+  socket.on("game:start", ({ game }, cb) => {
+    const room = roomFor(socket);
+    if (!room) return cb?.({ ok: false, error: "Room not found." });
+    const result = startGame(room, game);
+    cb?.({ ok: !result.error, ...result });
+  });
   socket.on("game:donkey-play", ({ index }) => { const room = roomFor(socket); const p = room && player(room, socket.id); if (room && p && room.game === "donkey") donkeyPlay(room, p, index); });
   socket.on("game:bluff", a => { const room = roomFor(socket); const p = room && player(room, socket.id); if (room && p && room.game === "bluff") bluffAction(room, p, a); });
   socket.on("game:book", a => { const room = roomFor(socket); const p = room && player(room, socket.id); if (room && p && room.game === "book") bookAsk(room, p, a); });

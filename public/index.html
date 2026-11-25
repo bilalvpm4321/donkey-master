@@ -1,22 +1,203 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Donkey Master — Card Night, Anywhere</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="style.css"></head>
-<body><div class="bg-orb orb1"></div><div class="bg-orb orb2"></div>
-<header class="topbar"><a class="brand" href="#"><span class="brand-icon">♠</span><span>DONKEY<span class="accent">MASTER</span><small>THE CARD TABLE GOES ONLINE</small></span></a><div class="top-actions"><span class="live-dot"></span><span id="connection">Not connected</span><button class="ghost small" id="rulesBtn">How to play</button></div></header>
-<main>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Donkey Master – Card Night, Anywhere</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     LOBBY
+════════════════════════════════════════ -->
 <section id="lobby" class="lobby">
- <div class="hero"><div class="eyebrow"><span>✦</span> YOUR FRIENDS. YOUR DECK. YOUR CHAOS.</div><h1>Game night,<br><em>without borders.</em></h1><p>Host a room, invite your crew with a code, turn on your cameras and let the card chaos begin.</p><div class="hero-pills"><span>● Multiplayer</span><span>● Live video</span><span>● 3 classic games</span></div></div>
- <div class="lobby-grid"><article class="panel create-panel"><div class="panel-icon">＋</div><h2>Host a table</h2><p>Create a private room and invite everyone in.</p><label>Your display name</label><input id="hostName" maxlength="20" placeholder="e.g. Card Captain"><button class="primary full" id="createBtn">Create game room <span>→</span></button></article>
- <article class="panel join-panel"><div class="panel-icon violet">⌁</div><h2>Join the crew</h2><p>Got a room code? Your seat is waiting.</p><label>Your display name</label><input id="joinName" maxlength="20" placeholder="e.g. The Ace"><label>Room key</label><input id="roomCode" class="code-input" maxlength="6" placeholder="ENTER CODE"><button class="secondary full" id="joinBtn">Join room <span>→</span></button></article></div>
- <div class="game-strip"><div><span class="eyebrow">PICK YOUR POISON</span><h2>Three ways to cause chaos.</h2></div><div class="mini-games"><div class="mini-card"><b>♠</b><strong>Real Donkey</strong><small>Trick-taking · 3–6 players</small></div><div class="mini-card"><b>🃏</b><strong>Bluff</strong><small>Deception · 2–6 players</small></div><div class="mini-card"><b>📚</b><strong>Book</strong><small>Memory · 2–6 players</small></div></div></div>
+  <header class="lobby-header">
+    <div class="brand">
+      <span class="brand-icon">♠</span>
+      <span class="brand-name">Donkey<span class="brand-accent">Master</span></span>
+    </div>
+    <span id="connection" class="conn-status">Connecting…</span>
+  </header>
+
+  <div class="lobby-body">
+    <div class="lobby-hero">
+      <h1>Game night,<br><em>without borders.</em></h1>
+      <p>Host a room, share the code, and let the card chaos begin.</p>
+      <div class="game-pills">
+        <span class="pill green">♠ Real Donkey</span>
+        <span class="pill purple">🃏 Bluff</span>
+        <span class="pill blue">📚 Book</span>
+      </div>
+    </div>
+
+    <div class="lobby-cards">
+      <div class="lcard">
+        <div class="lcard-icon">＋</div>
+        <h2>Host a table</h2>
+        <p>Create a private room and invite your crew.</p>
+        <label>Your display name</label>
+        <input id="hostName" maxlength="20" placeholder="e.g. Card Captain" autocomplete="off">
+        <button class="btn-primary full" id="createBtn">Create room →</button>
+      </div>
+      <div class="lcard lcard-join">
+        <div class="lcard-icon violet">✌</div>
+        <h2>Join the crew</h2>
+        <p>Got a room code? Your seat is waiting.</p>
+        <label>Your display name</label>
+        <input id="joinName" maxlength="20" placeholder="e.g. The Ace" autocomplete="off">
+        <label>Room key</label>
+        <input id="roomCode" class="code-input" maxlength="6" placeholder="ENTER CODE" autocomplete="off">
+        <button class="btn-secondary full" id="joinBtn">Join room →</button>
+      </div>
+    </div>
+  </div>
 </section>
+
+<!-- ══════════════════════════════════════
+     ROOM
+════════════════════════════════════════ -->
 <section id="room" class="room hidden">
- <div class="room-head"><div><div class="eyebrow">PRIVATE GAME ROOM</div><h1 id="roomTitle">Your table</h1><p id="roomSub">Waiting for your crew to arrive.</p></div><div class="invite"><span>ROOM KEY</span><strong id="roomCodeDisplay">------</strong><button id="copyCode" class="copy">Copy</button></div></div>
- <div class="room-layout"><div class="main-column"><section class="panel players-panel"><div class="section-head"><h2>At the table <span id="playerCount" class="count">0/6</span></h2><span class="muted">Share the key to invite friends</span></div><div id="players" class="players-grid"></div></section>
- <section class="panel video-panel"><div class="section-head"><h2>Video lounge <span class="muted">Optional</span></h2><button id="videoToggle" class="ghost">◉ Turn on camera</button></div><div id="videos" class="videos"><div class="video-placeholder"><span>◉</span><p>Camera party starts here</p><small>Turn on your camera to see your crew.</small></div></div><p class="tiny-note">Video is peer-to-peer. Allow camera and microphone access when prompted. Use HTTPS or localhost.</p></section>
- <section id="table" class="panel table-panel hidden"><div class="section-head"><h2 id="gameTitle">Game table</h2><span id="turnStatus" class="turn-status">Waiting</span></div><div id="gameBoard"></div><div class="hand-area"><div class="section-head"><h3>Your hand</h3><span id="handCount" class="muted"></span></div><div id="hand" class="hand"></div></div></section></div>
- <aside class="side-column"><section class="panel games-panel"><div class="eyebrow">CHOOSE A GAME</div><h2>What are we playing?</h2><button class="game-choice" data-game="donkey"><span class="choice-icon">♠</span><span><strong>Real Donkey</strong><small>Follow suit. Avoid the hit.</small></span><span class="arrow">→</span></button><button class="game-choice" data-game="bluff"><span class="choice-icon red">🃏</span><span><strong>Bluff</strong><small>Tell the truth… or don't.</small></span><span class="arrow">→</span></button><button class="game-choice" data-game="book"><span class="choice-icon purple">📚</span><span><strong>Book</strong><small>Remember who has what.</small></span><span class="arrow">→</span></button><p id="hostHint" class="tiny-note">Only the host can start a game.</p></section><section class="panel activity-panel"><div class="section-head"><h2>Table talk</h2><span class="live-dot"></span></div><div id="activity" class="activity"><p class="muted">The chatty table will show game updates here.</p></div></section><button class="ghost full" id="leaveBtn">← Leave room</button></aside></div>
+
+  <!-- Top bar -->
+  <header class="room-header">
+    <div class="brand small">
+      <span class="brand-icon">♠</span>
+      <span class="brand-name">Donkey<span class="brand-accent">Master</span></span>
+    </div>
+    <div class="room-code-wrap">
+      <span class="room-label">ROOM</span>
+      <strong id="roomCodeDisplay">------</strong>
+      <button id="copyCode" class="btn-ghost tiny">Copy</button>
+    </div>
+    <div class="room-actions">
+      <button id="videoToggle" class="btn-ghost cam-btn">
+        <span class="cam-dot off"></span>Turn on camera
+      </button>
+      <button id="leaveBtn" class="btn-ghost danger">Leave</button>
+    </div>
+  </header>
+
+  <!-- Main game area – shown when game is active -->
+  <div id="gameArea" class="game-area hidden">
+    <!-- Opponents arc (top) -->
+    <div id="opponentsArc" class="opponents-arc"></div>
+
+    <!-- Central table -->
+    <div class="table-center">
+      <div class="table-label" id="turnStatus">Waiting…</div>
+      <div id="gameBoard" class="game-board"></div>
+    </div>
+
+    <!-- Player hand (bottom) -->
+    <div class="player-hand-area">
+      <div class="hand-label">
+        <span>Your hand</span>
+        <span id="handCount" class="hand-count"></span>
+      </div>
+      <div id="hand" class="hand"></div>
+      <div id="handActions" class="hand-actions"></div>
+    </div>
+  </div>
+
+  <!-- Lobby state (before game starts) -->
+  <div id="lobbyState" class="lobby-state">
+    <!-- Players at table -->
+    <section class="ls-panel">
+      <div class="ls-head">
+        <h2>At the table <span id="playerCount" class="count-badge">0/6</span></h2>
+        <span class="ls-hint">Share the key to invite friends</span>
+      </div>
+      <div id="players" class="players-grid"></div>
+    </section>
+
+    <!-- Video lounge -->
+    <section class="ls-panel video-panel">
+      <div class="ls-head">
+        <h2>Video lounge <span class="optional-tag">Optional</span></h2>
+      </div>
+      <div id="videos" class="videos">
+        <div class="video-placeholder">
+          <span>◉</span>
+          <p>Camera party starts here</p>
+          <small>Turn on your camera to see your crew.</small>
+        </div>
+      </div>
+      <p class="tiny-note">Video is peer-to-peer. Allow camera and microphone access when prompted. Use HTTPS or localhost.</p>
+    </section>
+
+    <!-- Game picker -->
+    <section class="ls-panel games-panel">
+      <div class="ls-head">
+        <h2>Choose a game</h2>
+        <span id="roomSub" class="ls-hint">Waiting for your crew to arrive.</span>
+      </div>
+      <p id="hostHint" class="tiny-note">Click any game to open its table &amp; show the UI.</p>
+      <div class="game-choices">
+        <button class="game-choice donkey" data-game="donkey">
+          <div class="gc-icon">♠</div>
+          <div class="gc-info">
+            <strong>Real Donkey</strong>
+            <small>Follow suit. Avoid the hit.</small>
+          </div>
+          <span class="gc-arrow">→</span>
+        </button>
+        <button class="game-choice bluff" data-game="bluff">
+          <div class="gc-icon">🃏</div>
+          <div class="gc-info">
+            <strong>Bluff</strong>
+            <small>Tell the truth… or don't.</small>
+          </div>
+          <span class="gc-arrow">→</span>
+        </button>
+        <button class="game-choice book" data-game="book">
+          <div class="gc-icon">📚</div>
+          <div class="gc-info">
+            <strong>Book</strong>
+            <small>Remember who has what.</small>
+          </div>
+          <span class="gc-arrow">→</span>
+        </button>
+      </div>
+
+      <!-- Activity log -->
+      <div class="activity-wrap">
+        <div class="ls-head">
+          <h3>Table talk</h3>
+          <span class="live-dot"></span>
+        </div>
+        <div id="activity" class="activity"><p class="muted">Game updates will appear here.</p></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Video strip (compact, shown during game) -->
+  <div id="videoStrip" class="video-strip hidden">
+    <div id="stripVideos" class="strip-videos"></div>
+  </div>
+
 </section>
-</main>
+
 <div id="toast" class="toast"></div>
-<div id="rulesModal" class="modal hidden"><div class="modal-card"><button class="modal-close" id="closeRules">×</button><div class="eyebrow">THE HOUSE RULES</div><h2>Know the game. Own the table.</h2><div class="rule-tabs"><button class="active" data-rule="donkey">Donkey</button><button data-rule="bluff">Bluff</button><button data-rule="book">Book</button></div><div id="ruleContent" class="rule-content"></div></div></div>
-<script src="/socket.io/socket.io.js"></script><script src="app.js"></script></body></html>
+
+<!-- Rules modal -->
+<div id="rulesModal" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" id="closeRules">×</button>
+    <div class="eyebrow">THE HOUSE RULES</div>
+    <h2>Know the game. Own the table.</h2>
+    <div class="rule-tabs">
+      <button class="active" data-rule="donkey">Donkey</button>
+      <button data-rule="bluff">Bluff</button>
+      <button data-rule="book">Book</button>
+    </div>
+    <div id="ruleContent" class="rule-content"></div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

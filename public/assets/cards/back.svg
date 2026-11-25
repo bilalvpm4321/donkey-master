@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 520" width="360" height="520">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="50%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="borderGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#d97706"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <pattern id="lattice" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 0 10 L 10 0 L 20 10 L 10 20 Z" fill="none" stroke="#fbbf24" stroke-width="0.7" opacity="0.25"/>
+      <circle cx="10" cy="10" r="1.5" fill="#c7f36b" opacity="0.3"/>
+    </pattern>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+  </defs>
+  <!-- Card base -->
+  <rect x="8" y="8" width="344" height="504" rx="22" ry="22" fill="#ffffff" filter="url(#shadow)"/>
+  <rect x="14" y="14" width="332" height="492" rx="18" ry="18" fill="url(#bgGrad)"/>
+  <rect x="22" y="22" width="316" height="476" rx="14" ry="14" fill="none" stroke="url(#borderGrad)" stroke-width="2"/>
+  <rect x="28" y="28" width="304" height="464" rx="10" ry="10" fill="url(#lattice)"/>
+  <!-- Center ornament -->
+  <circle cx="180" cy="260" r="46" fill="#0f172a" stroke="url(#borderGrad)" stroke-width="2"/>
+  <circle cx="180" cy="260" r="38" fill="none" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+  <!-- Center spade/icon -->
+  <path d="M 180 232 C 168 250 152 262 164 274 C 172 282 178 276 180 270 C 182 276 188 282 196 274 C 208 262 192 250 180 232 Z" fill="url(#borderGrad)"/>
+  <path d="M 178 270 L 172 284 L 188 284 L 182 270 Z" fill="url(#borderGrad)"/>
+</svg>
