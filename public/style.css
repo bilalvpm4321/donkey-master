@@ -612,7 +612,8 @@ button:disabled{opacity:0.4;cursor:not-allowed;transform:none!important}
   .room-header{padding:10px 14px;gap:6px}
   .brand.small .brand-name{font-size:0.85rem}
   .room-code-wrap strong{font-size:0.9rem}
-  .room-actions .btn-ghost:not(.cam-btn){display:none}
+  .room-actions #leaveBtn{font-size:0.75rem;padding:5px 10px}
+  .room-actions #leaveBtn span{display:none}
 
   .lobby-state{padding:12px;flex-direction:column}
   .ls-panel{flex:none!important;width:100%}
